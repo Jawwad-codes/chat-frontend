@@ -18,7 +18,7 @@ export const verifyOtp = async ({ email, otp, token }) => {
     throw new Error("Token missing — please resend OTP");
   }
 
-  console.log("📨 Sending verification data:", {
+  console.log("Sending verification data:", {
     email,
     otp,
     token: authToken,

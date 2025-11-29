@@ -1,353 +1,325 @@
 /** @format */
 
-import React from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { registration } from "@/api/auth";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Cookies from "js-cookie";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import {
+  User,
+  Mail,
+  AtSign,
+  Camera,
+  Loader2,
+  Upload,
+  X,
+  Sparkles,
+  ArrowRight,
+  CheckCircle2,
+} from "lucide-react";
 
 import Headerline from "../components/Headerline";
+
 const RegisterUser = () => {
-  const [formData, setFormData] = React.useState({
+  const [formData, setFormData] = useState({
     email: "",
     username: "",
     fullname: "",
   });
 
-  const [avatarFile, setAvatarFile] = React.useState(null);
-  const [avatarPreview, setAvatarPreview] = React.useState("");
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
-
-  // Upload avatar after registration
-  const uploadAvatarAfterRegistration = async (file, authToken) => {
-    console.log("Starting avatar upload...", {
-      fileSize: file.size,
-      fileType: file.type,
-      token: authToken ? "Present" : "Missing",
-    });
-
-    const uploadFormData = new FormData();
-    uploadFormData.append("avatar", file);
-
-    try {
-      const response = await axios.post(
-        "http://localhost:7000/api/auth/profile/avatar",
-        uploadFormData,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            "Content-Type": "multipart/form-data",
-          },
-          withCredentials: true,
-        }
-      );
-
-      console.log("Avatar upload successful:", response.data);
-      return response.data;
-    } catch (error) {
-      console.error("Avatar upload failed:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-      });
-      throw error;
-    }
-  };
 
   const registrationMutation = useMutation({
     mutationFn: registration,
-    onSuccess: async (data) => {
-      console.log("Registration response:", data);
-
-      if (data?.token) {
-        Cookies.set("auth_token", data.token, { expires: 7 });
-
-        // Upload avatar after successful registration
-        if (avatarFile) {
-          try {
-            console.log("Starting avatar upload process...");
-            toast.info("Uploading profile picture...");
-            await uploadAvatarAfterRegistration(avatarFile, data.token);
-            toast.success("Profile picture uploaded successfully!");
-          } catch (error) {
-            console.error("Avatar upload error in onSuccess:", error);
-            const message =
-              error.response?.data?.message ||
-              "Failed to upload profile picture";
-            toast.error(message, {
-              description:
-                "Your registration was successful, but profile picture upload failed.",
-            });
-          }
-        } else {
-          console.log("No avatar file to upload");
-        }
-
-        toast.success("Registration completed successfully!");
-        setTimeout(() => navigate("/Home"), 1000);
+    onSuccess: (data) => {
+      if (data?.data?.token) {
+        Cookies.set("auth_token", data.data.token, { expires: 7 });
+        toast.success("Welcome aboard! Account created successfully.");
+        navigate("/Home");
       } else {
-        console.error("No token in registration response");
-        toast.error(
-          "Registration completed but no authentication token received"
-        );
+        toast.error("Registration completed but no token received.");
       }
     },
     onError: (error) => {
-      console.error("Registration error:", error);
-
-      if (error.response?.data?.details) {
-        const validationErrors = {};
-        error.response.data.details.forEach((detail) => {
-          if (detail.message.includes("Username")) {
-            validationErrors.username = detail.message;
-          } else if (detail.message.includes("Email")) {
-            validationErrors.email = detail.message;
-          } else if (detail.message.includes("Fullname")) {
-            validationErrors.fullname = detail.message;
-          }
-        });
-
-        const firstError = Object.values(validationErrors)[0];
-        if (firstError) {
-          toast.error("Validation Error", {
-            description: firstError,
-          });
-        }
-      } else {
-        const message =
-          error.response?.data?.error ||
-          error.response?.data?.message ||
-          "An unknown error occurred";
-        toast.error("Registration failed", { description: message });
-      }
+      toast.error(error.response?.data?.message || "Registration failed");
     },
   });
 
   const handleChange = (e) => {
-    const { name, value, type, files } = e.target;
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-    if (type === "file" && files && files[0]) {
+  const handleFileChange = (e) => {
+    const files = e.target.files;
+    if (files && files[0]) {
       const file = files[0];
 
-      // Validate file type
       if (!file.type.startsWith("image/")) {
-        toast.error("Please select a valid image file");
+        toast.error("Please upload a valid image file (JPG, PNG)");
         return;
       }
 
-      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        toast.error("Image size should be less than 5MB");
+        toast.error("Image must be less than 5MB");
         return;
       }
 
       setAvatarFile(file);
-
-      // Create preview URL
-      const previewUrl = URL.createObjectURL(file);
-      setAvatarPreview(previewUrl);
-
-      console.log("File selected:", {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-      });
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setAvatarPreview(URL.createObjectURL(file));
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const triggerFileInput = () => {
+    fileInputRef.current.click();
+  };
 
-    // Basic validation
-    if (!formData.email || !formData.username || !formData.fullname) {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const { email, username, fullname } = formData;
+
+    if (!email || !username || !fullname) {
       toast.error("Please fill in all required fields");
       return;
     }
 
-    // Username length validation
-    if (formData.username.length < 3 || formData.username.length > 20) {
-      toast.error("Username must be between 3 and 20 characters");
+    if (username.length < 3 || username.length > 20) {
+      toast.error("Username must be between 3–20 characters");
       return;
     }
 
-    const token = Cookies.get("registration_token");
-
-    if (!token) {
-      toast.error("Registration token not found", {
-        description: "Please verify your OTP again before registering.",
-      });
+    const registrationToken = Cookies.get("registration_token");
+    if (!registrationToken) {
+      toast.error("Session expired. Please verify your email again.");
       return;
     }
 
-    // Prepare registration data (without avatar for now)
-    const registrationData = {
-      email: formData.email.trim(),
-      username: formData.username.trim(),
-      fullname: formData.fullname.trim(),
-    };
+    const dataToSend = new FormData();
+    dataToSend.append("email", email.trim());
+    dataToSend.append("username", username.trim());
+    dataToSend.append("fullname", fullname.trim());
+    if (avatarFile) dataToSend.append("avatar", avatarFile);
 
-    console.log("Sending registration data:", registrationData);
-    console.log("Avatar file present:", !!avatarFile);
-
-    registrationMutation.mutate(registrationData);
+    registrationMutation.mutate(dataToSend);
   };
 
-  // Clean up preview URL when component unmounts
-  React.useEffect(() => {
-    return () => {
-      if (avatarPreview) {
-        URL.revokeObjectURL(avatarPreview);
-      }
-    };
+  const removeAvatar = (e) => {
+    e.stopPropagation();
+    setAvatarFile(null);
+    setAvatarPreview("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  useEffect(() => {
+    return () => avatarPreview && URL.revokeObjectURL(avatarPreview);
   }, [avatarPreview]);
 
   const isLoading = registrationMutation.isPending;
 
   return (
-    <div>
+    <div className="min-h-screen flex flex-col bg-white">
       <Headerline />
 
-      <div className="min-h-screen flex flex-col items-center justify-start py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-white via-green-100 to-white">
-        <div className="w-full max-w-6xl mx-auto">
-          {/* Header */}
+      <div className="flex-1 flex flex-col lg:flex-row h-full">
+        <div className="relative w-full lg:w-6/12 bg-slate-900 overflow-hidden min-h-[300px] lg:min-h-[calc(100vh-40px)] flex flex-col justify-center items-center text-center p-8 lg:p-12 text-white">
+          <img
+            src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?q=80&w=2084&auto=format&fit=crop"
+            alt="Community"
+            className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900/80"></div>
 
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="60"
-                height="60"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-primary"
-              >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
+          <div className="relative z-10 max-w-md">
+            <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-8 border border-white/20 shadow-xl">
+              <Sparkles className="text-emerald-400" size={32} />
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">
-              Complete Your Registration
-            </h2>
-            <p className="mt-2 text-sm sm:text-base text-gray-600">
-              Fill in your details to create your account
-            </p>
-          </div>
 
-          {/* Image & Form */}
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-            {/* Left - Illustration */}
-            <div className="w-full md:w-1/2 flex justify-center items-center pt-8">
-              <div className="w-full max-w-xs sm:max-w-sm md:max-w-md">
-                <img
-                  src="7613.jpg"
-                  alt="Registration illustration"
-                  className="w-full h-auto rounded-2xl shadow-sm object-cover"
-                />
+            <h1 className="text-3xl lg:text-4xl font-bold mb-4 tracking-tight">
+              Finish setting up your profile
+            </h1>
+            <p className="text-slate-300 text-lg mb-8 leading-relaxed">
+              Join a community that values privacy. Customize your profile to
+              let others recognize you easily.
+            </p>
+
+            <div className="flex flex-col gap-3 items-center lg:items-start opacity-80 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-emerald-400" />
+                <span>Choose a unique username</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-emerald-400" />
+                <span>Add a profile picture (Optional)</span>
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* Right - Form */}
-            <div className="w-full md:w-1/2">
-              <div className="bg-white p-6 sm:p-8 md:p-10 rounded-2xl shadow-lg border border-gray-200 space-y-6">
-                <form className="space-y-6" onSubmit={handleSubmit}>
-                  {" "}
-                  {/* Email */}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground">
-                      Email *
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="mt-2 block w-full px-4 py-3 border border-border rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      placeholder="you@example.com"
-                      required
-                    />
+        {/* right side - form */}
+        <div className="w-full lg:w-7/12 flex flex-col items-center justify-center p-6 sm:p-12 lg:p-20 bg-gray-50/50">
+          <div className="w-full max-w-lg bg-white p-8 sm:p-10 rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 animate-in slide-in-from-bottom-5 fade-in duration-700">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-slate-900">
+                One last step
+              </h2>
+              <p className="text-slate-500 mt-1">
+                Tell us a bit about yourself to get started.
+              </p>
+            </div>
+
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="flex justify-center mb-8">
+                <div className="relative group">
+                  <div
+                    onClick={triggerFileInput}
+                    className={`
+                      w-28 h-28 rounded-full cursor-pointer overflow-hidden border-4 transition-all duration-300
+                      ${
+                        avatarPreview
+                          ? "border-emerald-500 shadow-lg shadow-emerald-500/20"
+                          : "border-dashed border-gray-300 hover:border-emerald-400 hover:bg-gray-50"
+                      }
+                      flex items-center justify-center relative
+                    `}
+                  >
+                    {avatarPreview ? (
+                      <img
+                        src={avatarPreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center text-gray-400 group-hover:text-emerald-600 transition-colors">
+                        <Camera size={28} />
+                        <span className="text-[10px] uppercase font-bold mt-1">
+                          Upload
+                        </span>
+                      </div>
+                    )}
+
+                    {avatarPreview && (
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Upload className="text-white" size={24} />
+                      </div>
+                    )}
                   </div>
-                  {/* Full Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground">
-                      Full Name *
-                    </label>
+
+                  {avatarPreview && (
+                    <button
+                      type="button"
+                      onClick={removeAvatar}
+                      className="absolute top-0 right-0 bg-red-500 text-white p-1.5 rounded-full shadow-sm hover:bg-red-600 transition-colors z-10 border-2 border-white"
+                      title="Remove image"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+                  <p className="text-center text-xs text-gray-400 mt-2">
+                    Max 5MB
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 ml-1">
+                    Full Name
+                  </label>
+                  <div className="relative group">
+                    <User className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
                     <input
                       type="text"
                       name="fullname"
                       value={formData.fullname}
                       onChange={handleChange}
-                      className="mt-2 block w-full px-4 py-3 border border-border rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      placeholder="John Doe"
+                      className="w-full pl-10 pr-4 h-12 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-gray-400"
+                      placeholder="e.g. John Doe"
                       required
                     />
                   </div>
-                  {/* Username */}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground">
-                      Username *
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 ml-1">
+                    Email Address
+                  </label>
+                  <div className="relative group">
+                    <Mail className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 h-12 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-gray-400"
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between ml-1">
+                    <label className="text-sm font-medium text-slate-700">
+                      Username
                     </label>
+                    <span
+                      className={`text-xs ${
+                        formData.username.length > 20
+                          ? "text-red-500"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {formData.username.length}/20
+                    </span>
+                  </div>
+                  <div className="relative group">
+                    <AtSign className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
                     <input
                       type="text"
                       name="username"
                       value={formData.username}
                       onChange={handleChange}
-                      className="mt-2 block w-full px-4 py-3 border border-border rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-                      placeholder="user123"
+                      className="w-full pl-10 pr-4 h-12 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-gray-400"
+                      placeholder="unique_username"
                       required
                       minLength={3}
                       maxLength={20}
                     />
-                    <p className="mt-1 text-sm text-gray-500">
-                      {formData.username.length}/20 characters
-                    </p>
                   </div>
-                  {/* Avatar */}
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">
-                      Profile Picture {avatarFile && "✓"}
-                    </label>
-                    {avatarPreview && (
-                      <div className="mb-4 flex justify-center md:justify-start">
-                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-gray-300">
-                          <img
-                            src={avatarPreview}
-                            alt="Avatar preview"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      name="avatar"
-                      accept="image/*"
-                      onChange={handleChange}
-                      className="mt-2 block w-full px-4 py-3 border border-border rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
-                    />
-                    <p className="mt-1 text-sm text-gray-500">
-                      Upload a profile picture (JPEG, PNG, WebP, etc. Max 5MB)
-                    </p>
-                  </div>
-                  {/* Submit */}
-                  <Button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors rounded-lg py-3 text-sm sm:text-base"
-                  >
-                    {isLoading ? "Registering..." : "Register"}
-                  </Button>
-                </form>
+                </div>
               </div>
-            </div>
+
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-12 mt-6 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl shadow-lg shadow-emerald-500/20 font-medium text-base transition-all hover:scale-[1.01] active:scale-[0.98]"
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="animate-spin h-5 w-5" />
+                    <span>Creating Account...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span>Complete Registration</span>
+                    <ArrowRight size={18} />
+                  </div>
+                )}
+              </Button>
+            </form>
           </div>
         </div>
       </div>
