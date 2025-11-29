@@ -82,7 +82,14 @@ const EditProfile = ({ isOpen, onClose, user }) => {
     formData.append("username", username.trim());
     formData.append("email", email.trim());
 
-    if (avatarFile) formData.append("avatar", avatarFile);
+    // If avatar was removed, send empty string
+    if (!avatarPreview && !avatarFile) {
+      formData.append("avatar", "");
+    }
+    // If new avatar file is uploaded
+    else if (avatarFile) {
+      formData.append("avatar", avatarFile);
+    }
 
     updateMutation.mutate(formData);
   };

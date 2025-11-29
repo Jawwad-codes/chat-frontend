@@ -299,6 +299,14 @@ export default function ChatPage() {
                       : "bg-gray-100 text-gray-800 border border-gray-200 rounded-bl-md"
                   } ${msg.isOptimistic ? "opacity-80" : ""}`}
                 >
+                  {/* Show username for group chats */}
+                  {conversation?.type === "group" && !isMe && (
+                    <div className={`font-semibold text-xs mb-1 ${
+                      isMe ? "text-white" : "text-emerald-600"
+                    }`}>
+                      {msg.sender?.username || "Unknown"}
+                    </div>
+                  )}
                   {msg.content}
 
                   <div
