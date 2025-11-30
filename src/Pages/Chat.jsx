@@ -26,6 +26,7 @@ import {
   getConversationDetail,
   getMessages,
   connectSocket,
+  getSocket,
   joinConversationRoom,
   leaveConversationRoom,
   sendMessageViaSocket,
@@ -96,41 +97,47 @@ export default function ChatPage() {
   useEffect(() => {
     if (!conversationId || !currentUser) return;
 
+    console.log("🔌 Setting up socket for conversation:", conversationId);
     const socket = connectSocket();
 
-    socket.on("connect", () => setConnectionStatus("connected"));
-    socket.on("disconnect", () => setConnectionStatus("connecting"));
-
-    onReady(() => {
-      setConnectionStatus("ready");
-      joinConversationRoom(conversationId);
-    });
-
-    onMessageError((err) => alert(err.message || "Failed to send"));
-
+    // Set up message listeners FIRST before any events
     const handleIncomingMessage = (msg) => {
       setMessages((prev) => {
-        const exists = prev.some(
-          (m) =>
-            m._id === msg._id ||
-            m._tempId === msg._tempId ||
-            (m._tempId && m.content === msg.content && m.isOptimistic)
-        );
-
-        if (exists) return prev;
-
-        if (msg._id && prev.find((m) => m._tempId === msg._tempId)) {
-          return prev.map((m) =>
-            m._tempId === msg._tempId ? { ...msg, isOptimistic: false } : m
-          );
+        // Simple duplicate check by _id
+        if (prev.some((m) => m._id === msg._id)) {
+          return prev;
         }
 
+        // Add new message
         return [...prev, msg];
       });
     };
 
-    onMessageSent(handleIncomingMessage);
-    onReceiveMessage(handleIncomingMessage);
+    // Separate handler for messageSent (own messages)
+    const handleMessageSent = (msg) => {
+      // only show messages for current conversation
+      if (msg.conversation !== conversationId) {
+        return;
+      }
+      handleIncomingMessage(msg);
+    };
+
+    // separate handler for receiveMessage (messages from others)
+    const handleReceiveMessage = (msg) => {
+      // skip if message is from current user (already handled by messageSent)
+      if (msg.sender?._id === currentUser?._id) {
+        return;
+      }
+      // only show messages for current conversation
+      if (msg.conversation !== conversationId) {
+        return;
+      }
+      handleIncomingMessage(msg);
+    };
+
+    // set up all message listeners BEFORE connecting/joining
+    onMessageSent(handleMessageSent);
+    onReceiveMessage(handleReceiveMessage);
 
     onMessageEdited((updated) => {
       setMessages((prev) =>
@@ -148,10 +155,32 @@ export default function ChatPage() {
       pendingOperations.current.delete(`delete-${data.messageId}`);
     });
 
+    onMessageError((err) => {
+      alert(err.message || "Failed to send");
+    });
+
+    // Now set up connection listeners
+    socket.on("connect", () => {
+      setConnectionStatus("connected");
+    });
+    
+    socket.on("disconnect", () => {
+      setConnectionStatus("connecting");
+    });
+
+    onReady(() => {
+      setConnectionStatus("ready");
+      joinConversationRoom(conversationId);
+    });
+
     return () => {
       leaveConversationRoom(conversationId);
       removeSocketListeners();
-      socket.disconnect();
+      // Force disconnect so fresh connection is made next time
+      const socket = getSocket();
+      if (socket) {
+        socket.disconnect();
+      }
     };
   }, [conversationId, currentUser]);
 
@@ -179,24 +208,10 @@ export default function ChatPage() {
       return;
     }
 
-    const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-    const opKey = `send-${tempId}`;
-    if (pendingOperations.current.has(opKey)) return;
-
-    pendingOperations.current.add(opKey);
-
-    const optimisticMsg = {
-      _id: tempId,
-      _tempId: tempId,
-      content: inputText.trim(),
-      sender: currentUser,
-      createdAt: new Date().toISOString(),
-      isOptimistic: true,
-    };
-
-    setMessages((prev) => [...prev, optimisticMsg]);
-    setInputText("");
-    sendMessageViaSocket(conversationId, optimisticMsg.content, tempId);
+    // Just send message, no optimistic UI
+    const messageContent = inputText.trim();
+    setInputText(""); // Clear input immediately
+    sendMessageViaSocket(conversationId, messageContent);
   };
 
   const startEditing = (msg) => {
@@ -223,15 +238,15 @@ export default function ChatPage() {
   )?.user;
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-yellow-300">
+    <div className="flex flex-col h-[100dvh] bg-gray-50">
       {/* Header */}
-      <header className="flex-none h-16 px-4 flex items-center justify-between border-b bg-slate-800 border-gray-200">
+      <header className="flex-none h-16 px-4 flex items-center justify-between border-b bg-slate-800 border-gray-200 shadow-sm">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden -ml-2 text-gray-600 hover:bg-gray-100"
-            onClick={() => navigate(-1)}
+            className="-ml-2 text-gray-300 hover:bg-slate-700 hover:text-white"
+            onClick={() => navigate("/home")}
           >
             <ArrowLeft size={20} />
           </Button>
@@ -257,8 +272,9 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-100">
+      {/* Messages - Centered container for better UX on wide screens */}
+      <div className="flex-1 overflow-y-auto bg-gray-100 flex justify-center">
+        <div className="w-full max-w-4xl p-4 space-y-3">
         {messages.map((msg, index) => {
           const isMe = msg.sender?._id === currentUser?._id;
           const isPending =
@@ -273,7 +289,7 @@ export default function ChatPage() {
               key={msg._id || msg._tempId}
               className={`flex w-full ${
                 isMe ? "justify-end" : "justify-start"
-              } ${isPending ? "opacity-60" : ""}`}
+              } ${isPending ? "opacity-60" : ""} animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
               <div
                 className={`flex max-w-[85%] group relative ${
@@ -364,6 +380,7 @@ export default function ChatPage() {
           );
         })}
         <div ref={scrollRef} className="h-4" />
+        </div>
       </div>
 
       {/* Input */}

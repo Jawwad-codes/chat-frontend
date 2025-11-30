@@ -23,7 +23,6 @@ export const getConversationDetail = async (conversationId) => {
     `${API_URL}/conversations/${conversationId}`,
     authHeader()
   );
-  console.log(res.data);
   return res.data;
 };
 
@@ -64,9 +63,18 @@ export const connectSocket = () => {
 
   if (socket?.connected) return socket;
 
+  // if socket exists but disconnected THEN clean it up
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+  }
+
   socket = io(SOCKET_URL, {
     auth: { token },
     transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
   });
 
   socket.on("connect", () => console.log("Socket connected:", socket.id));
@@ -83,14 +91,12 @@ export const getSocket = () => socket;
 export const joinConversationRoom = (conversationId) => {
   if (socket) {
     socket.emit("joinConversation", JSON.stringify({ conversationId }));
-    console.log("Joining conversation:", conversationId);
   }
 };
 
 export const leaveConversationRoom = (conversationId) => {
   if (socket) {
     socket.emit("leaveConversation", JSON.stringify({ conversationId }));
-    console.log("Leaving conversation:", conversationId);
   }
 };
 
@@ -107,10 +113,6 @@ export const sendMessageViaSocket = (
       messageType: "text",
     };
     socket.emit("sendMessage", JSON.stringify(messageData));
-    console.log("Sending message:", {
-      conversationId,
-      content: content.substring(0, 50) + "...",
-    });
   }
 };
 
@@ -122,10 +124,6 @@ export const editMessageViaSocket = (messageId, conversationId, newContent) => {
       content: newContent,
     };
     socket.emit("editMessage", JSON.stringify(editData));
-    console.log("Editing message:", {
-      messageId,
-      newContent: newContent.substring(0, 50) + "...",
-    });
   }
 };
 
@@ -136,41 +134,43 @@ export const deleteMessageViaSocket = (messageId, conversationId) => {
       conversationId,
     };
     socket.emit("deleteMessage", JSON.stringify(deleteData));
-    console.log("Deleting message:", messageId);
   }
 };
 
 export const onReceiveMessage = (callback) => {
   if (socket) {
+    socket.off("receiveMessage");
     socket.on("receiveMessage", (data) => {
-      console.log("Received message:", data.message?._id);
-      callback(data.message || data);
+      const message = data.message || data;
+      callback(message);
     });
   }
 };
 
 export const onMessageSent = (callback) => {
   if (socket) {
+    socket.off("messageSent");
     socket.on("messageSent", (data) => {
-      console.log("Message sent confirmation:", data.message?._id);
-      callback(data.message || data);
+      const message = data.message || data;
+      callback(message);
     });
   }
 };
 
 export const onMessageEdited = (callback) => {
   if (socket) {
+    socket.off("messageEdited");
     socket.on("messageEdited", (data) => {
-      console.log("Message edited:", data.message?._id);
-      callback(data.message || data);
+      const message = data.message || data;
+      callback(message);
     });
   }
 };
 
 export const onMessageDeleted = (callback) => {
   if (socket) {
+    socket.off("messageDeleted");
     socket.on("messageDeleted", (data) => {
-      console.log("Message deleted:", data.messageId);
       callback(data);
     });
   }
@@ -178,8 +178,8 @@ export const onMessageDeleted = (callback) => {
 
 export const onMessageError = (callback) => {
   if (socket) {
+    socket.off("messageError");
     socket.on("messageError", (error) => {
-      console.error("Message error:", error);
       callback(error);
     });
   }
@@ -187,8 +187,8 @@ export const onMessageError = (callback) => {
 
 export const onReady = (callback) => {
   if (socket) {
+    socket.off("ready");
     socket.on("ready", (data) => {
-      console.log("Socket ready:", data);
       callback(data);
     });
   }
@@ -208,7 +208,6 @@ export const removeSocketListeners = () => {
 
 export const disconnectSocket = () => {
   if (socket) {
-    console.log("🔌 Disconnecting socket");
     removeSocketListeners();
     socket.disconnect();
     socket = null;
