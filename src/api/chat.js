@@ -4,7 +4,7 @@ import Cookies from "js-cookie";
 import io from "socket.io-client";
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:7000/api/chat";
+  `${import.meta.env.VITE_API_URL}/chat` || "http://localhost:7000/api/chat";
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:7000";
 
 const authHeader = () => ({
