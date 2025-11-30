@@ -24,7 +24,6 @@ import Headerline from "../components/Headerline";
 
 const RegisterUser = () => {
   const [formData, setFormData] = useState({
-    email: "",
     username: "",
     fullname: "",
   });
@@ -81,9 +80,9 @@ const RegisterUser = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const { email, username, fullname } = formData;
+    const { username, fullname } = formData;
 
-    if (!email || !username || !fullname) {
+    if (!username || !fullname) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -100,7 +99,6 @@ const RegisterUser = () => {
     }
 
     const dataToSend = new FormData();
-    dataToSend.append("email", email.trim());
     dataToSend.append("username", username.trim());
     dataToSend.append("fullname", fullname.trim());
     if (avatarFile) dataToSend.append("avatar", avatarFile);
@@ -247,24 +245,6 @@ const RegisterUser = () => {
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 h-12 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-gray-400"
                       placeholder="e.g. John Doe"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 ml-1">
-                    Email Address
-                  </label>
-                  <div className="relative group">
-                    <Mail className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="w-full pl-10 pr-4 h-12 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-gray-400"
-                      placeholder="you@example.com"
                       required
                     />
                   </div>
