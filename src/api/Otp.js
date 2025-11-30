@@ -4,7 +4,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 
 export const sendOtp = async ({ email, purpose }) => {
-  const response = await axios.post("http://localhost:7000/api/otp/send", {
+  const response = await axios.post(`${import.meta.env.VITE_API_URL}/otp/send`, {
     email,
     purpose,
   });
